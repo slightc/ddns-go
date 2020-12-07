@@ -6,7 +6,7 @@
 
 ``` bash
 make
-make install
+sudo make install
 ```
 
 ## config

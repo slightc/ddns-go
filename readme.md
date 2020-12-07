@@ -21,6 +21,7 @@ sudo vim /etc/ddns-go/config.yaml
 ## start
 
 ```
-sudo systemctrl enable ddns-go
-sudo systemctrl start ddns-go
+sudo systemctl enable ddns-go
+sudo systemctl start ddns-go
+sudo systemctl status ddns-go
 ```

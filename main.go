@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"main/qcloud"
 
@@ -165,6 +166,7 @@ func main() {
 			}
 			return
 		}
+		fmt.Println("== ", time.Now(), " ==")
 		fmt.Println("new ip: ", ip)
 		result, err := setRecordIp(setting, ip)
 		if err != nil {

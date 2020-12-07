@@ -16,7 +16,7 @@ sudo vim /etc/ddns-go/config.yaml
 ```
 填写对应信息
 
-其中id可以使用 `ddns-go -l` 查询(需要先填写完其他信息)
+其中id可以使用 `cd /etc/ddns-go/ && ddns-go -l` 查询(需要先填写完其他信息)
 
 ## start
 

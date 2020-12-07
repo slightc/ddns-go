@@ -4,7 +4,6 @@ After=network.target
 
 [Service]
 Type=simple
-User=nobody
 Restart=on-failure
 RestartSec=30s
 ExecStart=/usr/bin/ddns-go -c /etc/ddns-go/config.yaml

@@ -1,0 +1,7 @@
+# ddns config
+SecretId:  xxxx
+SecretKey: xxxx
+Domain: test.com
+Record: sub
+Id: 123456 
+Cron: "0 0/10 * * * ?"

@@ -20,5 +20,5 @@ install:
 	cp ${BUILD_DIR}/$(BINARY_NAME) /usr/bin/${BINARY_NAME}
 	mkdir -p /etc/ddns-go
 	cp ./config.yaml.default /etc/ddns-go/config.yaml
-	cp ./systemd/ddns-go.service /etc/systemd/systemd/ddns-go.service
+	cp ./systemd/ddns-go.service /etc/systemd/system/ddns-go.service
 .PHONY: install

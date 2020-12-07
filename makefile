@@ -6,12 +6,19 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 
 # Binary names
-BINARY_NAME=build/ddns-go
+BUILD_DIR=build
+BINARY_NAME=ddns-go
 
 all: build
 .PHONY: all
 
 build:
-	$(GOBUILD) -o $(BINARY_NAME) -v
-
+	$(GOBUILD) -o ${BUILD_DIR}/$(BINARY_NAME) -v
 .PHONY: build
+
+install:
+	cp ${BUILD_DIR}/$(BINARY_NAME) /usr/bin/${BINARY_NAME}
+	mkdir -p /etc/ddns-go
+	cp ./config.yaml.default /etc/ddns-go/config.yaml
+	cp ./systemd/ddns-go.service /etc/systemd/systemd/ddns-go.service
+.PHONY: install

@@ -57,6 +57,28 @@ func setRecordIp(config ddnsConfig, ip string) (qcloudStatus, error) {
 	return status, errors.New(status.Message)
 }
 
+func getRecordList(config ddnsConfig) (qcloudStatus, error) {
+	sKI := qcloud.SecretData{}
+	sKI.SecretId = config.SecretId
+	sKI.SecretKey = config.SecretKey
+
+	data, err := qcloud.GetRecordList(sKI, config.Domain)
+
+	if err != nil {
+		return qcloudStatus{}, err
+	}
+	fmt.Println(string(data))
+	var status qcloudStatus
+	err = json.Unmarshal(data, &status)
+	if err != nil {
+		return qcloudStatus{}, err
+	}
+	if status.Code == 0 {
+		return status, nil
+	}
+	return status, errors.New(status.Message)
+}
+
 func getIp() (string, error) {
 	resp, err := http.Get("http://ip.cip.cc")
 	if err != nil {
@@ -93,9 +115,11 @@ func main() {
 	var configFilePath string
 	var setting ddnsConfig
 	var showDebugInfo bool
+	var showRecordList bool
 
 	flag.StringVar(&configFilePath, "c", "./config.yaml", "config file path")
 	flag.BoolVar(&showDebugInfo, "d", false, "show debug information")
+	flag.BoolVar(&showRecordList, "l", false, "show record list")
 	flag.Parse()
 
 	config, err := ioutil.ReadFile(configFilePath)
@@ -105,6 +129,11 @@ func main() {
 	}
 
 	yaml.Unmarshal(config, &setting)
+
+	if showRecordList {
+		getRecordList(setting)
+		return
+	}
 
 	tempFile, err := ioutil.TempFile(os.TempDir(), "ddns-ip-*")
 

@@ -5,10 +5,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"main/qcloud"
@@ -108,7 +111,10 @@ func ipIsChanged(ip string, tempFile *os.File) (bool, error) {
 	if oldIp == ip {
 		return false, nil
 	}
+	tempFile.Truncate(0)
+	tempFile.Seek(0, io.SeekStart)
 	tempFile.Write([]byte(ip))
+	tempFile.Sync()
 	return true, nil
 }
 
@@ -117,6 +123,8 @@ func main() {
 	var setting ddnsConfig
 	var showDebugInfo bool
 	var showRecordList bool
+	exitSignal := make(chan os.Signal)
+	signal.Notify(exitSignal, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	flag.StringVar(&configFilePath, "c", "./config.yaml", "config file path")
 	flag.BoolVar(&showDebugInfo, "d", false, "show debug information")
@@ -126,7 +134,7 @@ func main() {
 	config, err := ioutil.ReadFile(configFilePath)
 
 	if err != nil {
-		fmt.Print("read config file err: ", err)
+		fmt.Println("read config file err: ", err)
 	}
 
 	yaml.Unmarshal(config, &setting)
@@ -181,5 +189,9 @@ func main() {
 	task()
 	crontab.Start()
 
-	select {}
+	select {
+	case s := <-exitSignal:
+		fmt.Println("exit with :", s)
+		break
+	}
 }

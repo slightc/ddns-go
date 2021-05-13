@@ -125,7 +125,7 @@ func updateRecordId(config *ddnsConfig) {
 }
 
 func getIp() (string, error) {
-	timeout := time.Duration(10 * time.Second)
+	timeout := time.Duration(20 * time.Second)
 	client := http.Client{
 		Timeout: timeout,
 	}

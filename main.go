@@ -111,6 +111,19 @@ func getRecordId(config ddnsConfig, name string) (string, error) {
 	return "", errors.New("not found")
 }
 
+func updateRecordId(config *ddnsConfig) {
+	if config.Id == "" {
+		recordId, err := getRecordId(*config, config.Record)
+		if err != nil {
+			fmt.Println("get record list err: ", err)
+			return
+		}
+		config.Id = recordId
+		fmt.Println("get setting Id :", config.Id)
+		fmt.Println("please write to config file")
+	}
+}
+
 func getIp() (string, error) {
 	timeout := time.Duration(10 * time.Second)
 	client := http.Client{
@@ -188,20 +201,10 @@ func main() {
 		return
 	}
 
-	if setting.Id == "" {
-		recordId, err := getRecordId(setting, setting.Record)
-		if err != nil {
-			fmt.Println("get record list err: ", err)
-			return
-		}
-		setting.Id = recordId
-		fmt.Println("get setting Id :", setting.Id)
-		fmt.Println("please write to config file")
-	}
+	updateRecordId(&setting)
 	if setting.Id == "" {
 		fmt.Println("get setting id failed")
 		fmt.Println("please check Domain and Record in your config file")
-		return
 	}
 
 	tempFile, err := ioutil.TempFile(os.TempDir(), "ddns-ip-*")
@@ -215,6 +218,11 @@ func main() {
 
 	crontab := cron.New()
 	task := func() {
+		updateRecordId(&setting)
+		if setting.Id == "" {
+			fmt.Println("get setting id failed")
+			return
+		}
 		ip, err := getIp()
 		if err != nil {
 			fmt.Println("get ip err: ", err)

@@ -1,7 +1,6 @@
 # ddns config
-SecretId:  xxxx
+SecretId: xxxx
 SecretKey: xxxx
 Domain: test.com
 Record: sub
-Id: 123456 
-Cron: "0 0/10 * * * ?"
+Cron: "0 0/10 * * * ?" # 十分钟查询一次 在生成工具 https://www.matools.com/cron

@@ -29,10 +29,24 @@ type ddnsConfig struct {
 	Cron      string `yaml:"Cron"`
 }
 
+type qcloudRecordListItem struct {
+	Id   int    `yaml:"id"`
+	Name string `yaml:"name"`
+}
+type qcloudRecordData struct {
+	Records []qcloudRecordListItem `json:"records"`
+}
+
 type qcloudStatus struct {
 	Code     int    `json:"code"`
 	CodeDesc string `json:"codeDesc"`
 	Message  string `json:"message"`
+	// Data     qcloudStatusData `json:"data"`
+}
+
+type qcloudRecordInfo struct {
+	qcloudStatus
+	Data qcloudRecordData `json:"data"`
 }
 
 func setRecordIp(config ddnsConfig, ip string) (qcloudStatus, error) {
@@ -61,7 +75,7 @@ func setRecordIp(config ddnsConfig, ip string) (qcloudStatus, error) {
 	return status, errors.New(status.Message)
 }
 
-func getRecordList(config ddnsConfig) (qcloudStatus, error) {
+func getRecordList(config ddnsConfig) (qcloudRecordInfo, error) {
 	sKI := qcloud.SecretData{}
 	sKI.SecretId = config.SecretId
 	sKI.SecretKey = config.SecretKey
@@ -69,13 +83,13 @@ func getRecordList(config ddnsConfig) (qcloudStatus, error) {
 	data, err := qcloud.GetRecordList(sKI, config.Domain)
 
 	if err != nil {
-		return qcloudStatus{}, err
+		return qcloudRecordInfo{}, err
 	}
-	fmt.Println(string(data))
-	var status qcloudStatus
+	// fmt.Println(string(data))
+	var status qcloudRecordInfo
 	err = json.Unmarshal(data, &status)
 	if err != nil {
-		return qcloudStatus{}, err
+		return qcloudRecordInfo{}, err
 	}
 	if status.Code == 0 {
 		return status, nil
@@ -83,8 +97,26 @@ func getRecordList(config ddnsConfig) (qcloudStatus, error) {
 	return status, errors.New(status.Message)
 }
 
+func getRecordId(config ddnsConfig, name string) (string, error) {
+	recordState, err := getRecordList(config)
+	if err != nil {
+		return "", err
+	}
+	recordList := recordState.Data.Records
+	for _, record := range recordList {
+		if record.Name == name {
+			return fmt.Sprint(record.Id), nil
+		}
+	}
+	return "", errors.New("not found")
+}
+
 func getIp() (string, error) {
-	resp, err := http.Get("http://ip.cip.cc")
+	timeout := time.Duration(10 * time.Second)
+	client := http.Client{
+		Timeout: timeout,
+	}
+	resp, err := client.Get("http://ip.cip.cc")
 	if err != nil {
 		return "", err
 	}
@@ -149,7 +181,26 @@ func main() {
 	yaml.Unmarshal(config, &setting)
 
 	if showRecordList {
-		getRecordList(setting)
+		recordList, err := getRecordList(setting)
+		if err == nil {
+			fmt.Println("allRecord ", recordList)
+		}
+		return
+	}
+
+	if setting.Id == "" {
+		recordId, err := getRecordId(setting, setting.Record)
+		if err != nil {
+			fmt.Println("get record list err: ", err)
+			return
+		}
+		setting.Id = recordId
+		fmt.Println("get setting Id :", setting.Id)
+		fmt.Println("please write to config file")
+	}
+	if setting.Id == "" {
+		fmt.Println("get setting id failed")
+		fmt.Println("please check Domain and Record in your config file")
 		return
 	}
 
@@ -197,6 +248,8 @@ func main() {
 	crontab.AddFunc(setting.Cron, task)
 	task()
 	crontab.Start()
+
+	fmt.Println("waiting")
 
 	select {
 	case s := <-exitSignal:

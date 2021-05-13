@@ -123,10 +123,10 @@ func main() {
 	var setting ddnsConfig
 	var showDebugInfo bool
 	var showRecordList bool
-	exitSignal := make(chan os.Signal)
+	exitSignal := make(chan os.Signal, 1)
 	signal.Notify(exitSignal, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	flag.StringVar(&configFilePath, "c", "./config.yaml", "config file path")
+	flag.StringVar(&configFilePath, "c", "/etc/ddns-go/config.yaml", "config file path")
 	flag.BoolVar(&showDebugInfo, "d", false, "show debug information")
 	flag.BoolVar(&showRecordList, "l", false, "show record list")
 	flag.Parse()
@@ -134,7 +134,16 @@ func main() {
 	config, err := ioutil.ReadFile(configFilePath)
 
 	if err != nil {
+		configFilePath = "./config.yaml"
 		fmt.Println("read config file err: ", err)
+		fmt.Println("try use ", configFilePath)
+		config, err = ioutil.ReadFile(configFilePath)
+	}
+
+	if err != nil {
+		fmt.Println("read config file err: ", err)
+		fmt.Println("exit with no config file")
+		return
 	}
 
 	yaml.Unmarshal(config, &setting)

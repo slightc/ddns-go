@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
+	"regexp"
 	"syscall"
 	"time"
 
@@ -129,7 +129,7 @@ func getIp() (string, error) {
 	client := http.Client{
 		Timeout: timeout,
 	}
-	resp, err := client.Get("http://ip.cip.cc")
+	resp, err := client.Get("http://cip.cc")
 	if err != nil {
 		return "", err
 	}
@@ -139,8 +139,8 @@ func getIp() (string, error) {
 		return "", err
 	}
 	ip := string(body)
-	ip = strings.Replace(ip, "\r\n", "", -1)
-	ip = strings.Replace(ip, "\n", "", -1)
+	reg := regexp.MustCompile(`\d{1,3}\.\d{1,3}.\d{1,3}.\d{1,3}`)
+	ip = reg.FindString(ip)
 	if ip == "" {
 		return "", errors.New("ip is empty")
 	}

@@ -1,19 +1,17 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"os/signal"
-	"regexp"
 	"syscall"
 	"time"
 
+	"main/aliyun"
+	"main/common"
+	"main/iputil"
 	"main/qcloud"
 
 	"github.com/robfig/cron"
@@ -21,146 +19,13 @@ import (
 )
 
 type ddnsConfig struct {
+	Type      string `yaml:"Type"`
 	SecretId  string `yaml:"SecretId"`
 	SecretKey string `yaml:"SecretKey"`
 	Domain    string `yaml:"Domain"`
 	Record    string `yaml:"Record"`
-	Id        string `yaml:"Id"`
+	RecordId  string `yaml:"RecordId"`
 	Cron      string `yaml:"Cron"`
-}
-
-type qcloudRecordListItem struct {
-	Id   int    `yaml:"id"`
-	Name string `yaml:"name"`
-}
-type qcloudRecordData struct {
-	Records []qcloudRecordListItem `json:"records"`
-}
-
-type qcloudStatus struct {
-	Code     int    `json:"code"`
-	CodeDesc string `json:"codeDesc"`
-	Message  string `json:"message"`
-	// Data     qcloudStatusData `json:"data"`
-}
-
-type qcloudRecordInfo struct {
-	qcloudStatus
-	Data qcloudRecordData `json:"data"`
-}
-
-func setRecordIp(config ddnsConfig, ip string) (qcloudStatus, error) {
-	sKI := qcloud.SecretData{}
-	sKI.SecretId = config.SecretId
-	sKI.SecretKey = config.SecretKey
-	record := qcloud.RecordData{}
-	record.RecordId = config.Id
-	record.SubDomain = config.Record
-	record.RecordType = "A"
-	record.Value = ip
-
-	data, err := qcloud.ModifyRecord(sKI, config.Domain, record)
-
-	if err != nil {
-		return qcloudStatus{}, err
-	}
-	var status qcloudStatus
-	err = json.Unmarshal(data, &status)
-	if err != nil {
-		return qcloudStatus{}, err
-	}
-	if status.Code == 0 {
-		return status, nil
-	}
-	return status, errors.New(status.Message)
-}
-
-func getRecordList(config ddnsConfig) (qcloudRecordInfo, error) {
-	sKI := qcloud.SecretData{}
-	sKI.SecretId = config.SecretId
-	sKI.SecretKey = config.SecretKey
-
-	data, err := qcloud.GetRecordList(sKI, config.Domain)
-
-	if err != nil {
-		return qcloudRecordInfo{}, err
-	}
-	// fmt.Println(string(data))
-	var status qcloudRecordInfo
-	err = json.Unmarshal(data, &status)
-	if err != nil {
-		return qcloudRecordInfo{}, err
-	}
-	if status.Code == 0 {
-		return status, nil
-	}
-	return status, errors.New(status.Message)
-}
-
-func getRecordId(config ddnsConfig, name string) (string, error) {
-	recordState, err := getRecordList(config)
-	if err != nil {
-		return "", err
-	}
-	recordList := recordState.Data.Records
-	for _, record := range recordList {
-		if record.Name == name {
-			return fmt.Sprint(record.Id), nil
-		}
-	}
-	return "", errors.New("not found")
-}
-
-func updateRecordId(config *ddnsConfig) {
-	if config.Id == "" {
-		recordId, err := getRecordId(*config, config.Record)
-		if err != nil {
-			fmt.Println("get record list err: ", err)
-			return
-		}
-		config.Id = recordId
-		fmt.Println("get setting Id :", config.Id)
-		fmt.Println("please write to config file")
-	}
-}
-
-func getIp() (string, error) {
-	timeout := time.Duration(20 * time.Second)
-	client := http.Client{
-		Timeout: timeout,
-	}
-	resp, err := client.Get("http://cip.cc")
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	ip := string(body)
-	reg := regexp.MustCompile(`\d{1,3}\.\d{1,3}.\d{1,3}.\d{1,3}`)
-	ip = reg.FindString(ip)
-	if ip == "" {
-		return "", errors.New("ip is empty")
-	}
-	return ip, nil
-}
-
-func ipIsChanged(ip string, tempFile *os.File) (bool, error) {
-	data, err := ioutil.ReadFile(tempFile.Name())
-	if err != nil {
-		return false, err
-	}
-	oldIp := string(data)
-	if oldIp == ip {
-		return false, nil
-	}
-	tempFile.Truncate(0)
-	tempFile.Seek(0, io.SeekStart)
-	tempFile.Write([]byte(ip))
-	tempFile.Sync()
-	return true, nil
 }
 
 func main() {
@@ -193,37 +58,34 @@ func main() {
 
 	yaml.Unmarshal(config, &setting)
 
-	if showRecordList {
-		recordList, err := getRecordList(setting)
-		if err == nil {
-			fmt.Println("allRecord ", recordList)
-		}
+	var recordInfo = common.RecordInfo{Domain: setting.Domain, Name: setting.Record, Id: setting.RecordId}
+	var accessKey = common.AccessKey{Id: setting.SecretId, Secret: setting.SecretKey}
+	var recordHandler common.RecordHandler = nil
+
+	fmt.Printf("%#v\n", recordInfo)
+
+	if setting.Type == "aliyun" {
+		recordHandler = aliyun.Aliyun{Key: accessKey}
+	}
+	if setting.Type == "qcloud" {
+		recordHandler = qcloud.Qcloud{Key: accessKey}
+	}
+
+	if recordHandler == nil {
+		fmt.Println("recordHandler create failed")
 		return
 	}
 
-	updateRecordId(&setting)
-	if setting.Id == "" {
-		fmt.Println("get setting id failed")
-		fmt.Println("please check Domain and Record in your config file")
-	}
-
-	tempFile, err := ioutil.TempFile(os.TempDir(), "ddns-ip-*")
-
+	err = iputil.Init()
 	if err != nil {
 		fmt.Println("create temp file err: ", err)
 		return
 	}
-
-	defer os.Remove(tempFile.Name())
+	defer iputil.Deinit()
 
 	crontab := cron.New()
 	task := func() {
-		updateRecordId(&setting)
-		if setting.Id == "" {
-			fmt.Println("get setting id failed")
-			return
-		}
-		ip, err := getIp()
+		ip, err := iputil.GetIp()
 		if err != nil {
 			fmt.Println("get ip err: ", err)
 			return
@@ -231,7 +93,7 @@ func main() {
 		if showDebugInfo {
 			fmt.Println("now ip: ", ip)
 		}
-		ipChanged, err := ipIsChanged(ip, tempFile)
+		ipChanged, err := iputil.IpIsChanged(ip)
 		if err != nil {
 			fmt.Println("check ip changed err: ", err)
 			return
@@ -244,12 +106,12 @@ func main() {
 		}
 		fmt.Println("== ", time.Now(), " ==")
 		fmt.Println("new ip: ", ip)
-		result, err := setRecordIp(setting, ip)
+		err = recordHandler.SetRecordIp(&recordInfo, ip)
 		if err != nil {
 			fmt.Println("set dns err: ", err)
 			return
 		}
-		fmt.Println(result)
+		fmt.Println("ip modify success")
 	}
 	fmt.Println("start listen ip change")
 	fmt.Println("cron run use: ", setting.Cron)

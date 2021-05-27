@@ -1,140 +1,94 @@
 package qcloud
 
 import (
-	"crypto/hmac"
-	"crypto/sha1"
-	"encoding/base64"
 	"errors"
-	"io/ioutil"
-	"math/rand"
-	"net/http"
-	"net/url"
-	"sort"
+	"fmt"
+	"main/common"
 	"strconv"
-	"strings"
-	"time"
+
+	qCommon "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
+	qProfile "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
+	dnspod "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod/v20210323"
 )
 
-var qcloudApiHost = "cns.api.qcloud.com/v2/index.php"
-
-type SecretData struct {
-	SecretId  string
-	SecretKey string
+type Qcloud struct {
+	Key common.AccessKey
 }
 
-type RecordData struct {
-	RecordId   string
-	SubDomain  string
-	RecordType string
-	RecordLine string
-	Value      string
-	Ttl        int
-	Mx         int
+func (q Qcloud) getClient() (*dnspod.Client, error) {
+	credential := qCommon.NewCredential(
+		q.Key.Id,
+		q.Key.Secret,
+	)
+
+	cpf := qProfile.NewClientProfile()
+	cpf.HttpProfile.Endpoint = "dnspod.tencentcloudapi.com"
+	return dnspod.NewClient(credential, "", cpf)
 }
 
-func addKv(kvList *[]string, key string, value string) {
-	*kvList = append(*kvList, key+"="+value)
-}
-
-func createComKv(secretId string, addData []string) []string {
-	kv := []string{}
-	if addData != nil {
-		kv = addData
-	}
-	nowTime := time.Now().Unix()
-	rand.Seed(nowTime)
-	addKv(&kv, "Nonce", strconv.FormatInt(int64(rand.Intn(10000)), 10))
-	addKv(&kv, "Timestamp", strconv.FormatInt(nowTime, 10))
-	addKv(&kv, "SecretId", secretId)
-	return kv
-}
-
-func createParam(kvList []string) string {
-	sort.Strings(kvList)
-
-	out := strings.Join(kvList, "&")
-
-	return out
-}
-
-func cryptoSignParam(data string, key string) string {
-	k := []byte(key)
-	mac := hmac.New(sha1.New, k)
-	mac.Write([]byte(data))
-	b64Data := base64.StdEncoding.EncodeToString(mac.Sum(nil))
-	return url.QueryEscape(b64Data)
-}
-
-func signParam(method string, kvList []string, key string) string {
-	params := createParam(kvList)
-	out := method + qcloudApiHost + "?" + params
-	return cryptoSignParam(out, key)
-}
-
-///////////////////////////////////////////////////////////////////////////
-
-func qcloudGet(sKI SecretData, addParams []string) ([]byte, error) {
-	params := createComKv(sKI.SecretId, addParams)
-	addKv(&params, "Signature", signParam("GET", params, sKI.SecretKey))
-
-	resp, err := http.Get("https://" + qcloudApiHost + "?" + createParam(params))
+func (q Qcloud) getRecordList(info *common.RecordInfo) (*dnspod.DescribeRecordListResponse, error) {
+	client, err := q.getClient()
 	if err != nil {
 		return nil, err
 	}
 
-	defer resp.Body.Close()
+	request := dnspod.NewDescribeRecordListRequest()
+	request.Domain = qCommon.StringPtr(info.Domain)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	return client.DescribeRecordList(request)
+}
+
+func (q Qcloud) getRecordId(info *common.RecordInfo) (string, error) {
+	list, err := q.getRecordList(info)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return body, nil
-}
-
-func fromString(data string, defaultData string) string {
-	if data == "" {
-		return defaultData
+	records := list.Response.RecordList
+	for _, record := range records {
+		if *record.Name == info.Name {
+			recordId := strconv.FormatInt(int64(*record.RecordId), 10)
+			return recordId, nil
+		}
 	}
-	return data
+	return "", errors.New("no found record id")
 }
 
-func fromInt(data int, defaultData int) string {
-	if data == 0 {
-		return strconv.FormatInt(int64(defaultData), 10)
-	}
-	return strconv.FormatInt(int64(data), 10)
-}
-
-///////////////////////////////////////////////////////////////////////////
-
-func GetRecordList(sKI SecretData, domain string) ([]byte, error) {
-	params := []string{}
-	addKv(&params, "Action", "RecordList")
-	addKv(&params, "domain", domain)
-
-	return qcloudGet(sKI, params)
-}
-
-func ModifyRecord(sKI SecretData, domain string, record RecordData) ([]byte, error) {
-
-	if record.RecordId == "" || record.SubDomain == "" || record.RecordType == "" || record.Value == "" {
-		return nil, errors.New("no must param")
+func (q Qcloud) setRecordIp(info *common.RecordInfo, ip string) error {
+	client, err := q.getClient()
+	if err != nil {
+		return err
 	}
 
-	params := []string{}
-	addKv(&params, "Action", "RecordModify")
-	addKv(&params, "domain", domain)
+	recordId, err := strconv.ParseInt(info.Id, 10, 64)
+	if err != nil {
+		return err
+	}
 
-	addKv(&params, "recordId", record.RecordId)
-	addKv(&params, "subDomain", record.SubDomain)
-	addKv(&params, "recordType", record.RecordType)
-	addKv(&params, "recordLine", (fromString(record.RecordLine, "默认")))
-	addKv(&params, "value", record.Value)
+	request := dnspod.NewModifyRecordRequest()
+	request.RecordType = qCommon.StringPtr("A")
+	request.RecordLine = qCommon.StringPtr("默认")
 
-	addKv(&params, "ttl", fromInt(record.Ttl, 600))
-	addKv(&params, "mx", fromInt(record.Mx, 0))
+	request.Domain = qCommon.StringPtr(info.Domain)
+	request.SubDomain = qCommon.StringPtr(info.Name)
+	request.RecordId = qCommon.Uint64Ptr(uint64(recordId))
+	request.Value = qCommon.StringPtr(ip)
 
-	return qcloudGet(sKI, params)
+	_, err = client.ModifyRecord(request)
+
+	return err
 }
 
-///////////////////////////////////////////////////////////////////////////
+func (q Qcloud) SetRecordIp(info *common.RecordInfo, ip string) error {
+	if info == nil {
+		return errors.New("info is nil")
+	}
+	if info.Id == "" {
+		id, err := q.getRecordId(info)
+		fmt.Println("record Id is: ", id)
+		if err != nil {
+			return err
+		}
+		info.Id = id
+	}
+	return q.setRecordIp(info, ip)
+}

@@ -14,9 +14,30 @@ sudo make install
 ```
 sudo vim /etc/ddns-go/config.yaml
 ```
-填写对应信息
 
-其中id可以使用 `cd /etc/ddns-go/ && ddns-go -l` 查询(需要先填写完其他信息)
+## config参数
+
+### Type
+
+域名解析商家 目前支持腾讯云和阿里云
+
+* qcloud 腾讯云
+* aliyun 阿里云
+
+### SecretId SecretKey
+密钥信息
+
+### Domain
+解析的域名
+
+### Record
+解析的记录
+
+### Cron
+控制定时查询的参数
+
+在线生成工具 https://www.matools.com/cron
+
 
 ## start
 

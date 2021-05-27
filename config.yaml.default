@@ -1,4 +1,5 @@
 # ddns config
+Type: qcloud
 SecretId: xxxx
 SecretKey: xxxx
 Domain: test.com

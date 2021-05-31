@@ -27,17 +27,43 @@ sudo vim /etc/ddns-go/config.yaml
 ### SecretId SecretKey
 密钥信息
 
-### Domain
-解析的域名
+密钥获取的地址如下
+* 腾讯云 https://console.cloud.tencent.com/cam/capi
+* 阿里云 https://ram.console.aliyun.com/manage/ak
 
-### Record
-解析的记录
+请创建密钥或者使用已有的密钥
+
+> 请妥善管理秘钥信息
+
+SecretId SecretKey对应的信息如下
+
+|服务商|SecretId|SecretKey|
+| - | - | - |
+|腾讯云|SecretId|SecretKey|
+|阿里云|AccessKey ID|AccessKey Secret|
+
+### Domain Record
+解析的域名和记录名
+
+假设需要动态修改IP的域名如为
+
+```
+sub.test.com
+|_| |______|
+|          |
+Record     Domain
+```
+
+Domain为`test.com`
+
+Record为`sub`
+
+> 该条记录请先自行创建 `ddns-go` 只进行解析记录的修改 不会创建记录 
 
 ### Cron
 控制定时查询的参数
 
 在线生成工具 https://www.matools.com/cron
-
 
 ## start
 

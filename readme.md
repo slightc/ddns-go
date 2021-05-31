@@ -1,6 +1,6 @@
 # ddns-go
 
-基于golang和腾讯云api开发的ddns服务
+基于golang开发的动态域名解析服务，适用于动态公网解析
 
 ## install
 

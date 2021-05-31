@@ -43,12 +43,21 @@ linux_arm:
 linux_arm64:
 	$(call CROSS_BUILD_LINUX,arm64)
 
-linux_amd64:
-	$(call CROSS_BUILD_LINUX,amd64)
 linux_386:
 	$(call CROSS_BUILD_LINUX,386)
+linux_amd64:
+	$(call CROSS_BUILD_LINUX,amd64)
 
-linux_all: linux_arm linux_arm64
+linux_mips:
+	$(call CROSS_BUILD_LINUX,mips)
+linux_mips64:
+	$(call CROSS_BUILD_LINUX,mips64)
+linux_mipsle:
+	$(call CROSS_BUILD_LINUX,mipsle)
+linux_mips64le:
+	$(call CROSS_BUILD_LINUX,mips64le)
+
+linux_all: linux_arm linux_arm64 linux_386 linux_amd64 linux_mips linux_mips64 linux_mipsle linux_mips64le
 
 darwin_amd64:
 	$(call CROSS_BUILD_DARWIN,amd64)

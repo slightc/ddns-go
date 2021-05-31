@@ -33,7 +33,7 @@ sudo vim /etc/ddns-go/config.yaml
 
 请创建密钥或者使用已有的密钥
 
-> 请妥善管理秘钥信息
+> 请妥善管理密钥信息
 
 SecretId SecretKey对应的信息如下
 
